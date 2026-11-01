@@ -78,15 +78,17 @@ CREATE TABLE person (
     birthYear INTEGER AS Int,
     interests TEXT NOT NULL,
     hobbies TEXT NOT NULL,
-    giftIdeas TEXT NOT NULL
+    giftIdeas TEXT NOT NULL,
+    noteSections TEXT NOT NULL DEFAULT '[]',
+    avatarBase64 TEXT
 );
 
 selectPeople:
 SELECT * FROM person ORDER BY fullName COLLATE NOCASE ASC, id ASC;
 
 upsertPerson:
-INSERT OR REPLACE INTO person(id, fullName, birthdayMonth, birthdayDay, birthYear, interests, hobbies, giftIdeas)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO person(id, fullName, birthdayMonth, birthdayDay, birthYear, interests, hobbies, giftIdeas, noteSections, avatarBase64)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 deletePerson:
 DELETE FROM person WHERE id = ?;

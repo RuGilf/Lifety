@@ -506,6 +506,9 @@ Task, repository interfaces, SQL и screen entry signatures сохранены.
 
 ## Люди и дни рождения — 27 октября 2026
 
+Ниже показана текущая аддитивная модель, включая дополнение от 1 ноября.
+Точные правила своих разделов и фото — в конце документа.
+
 Все новые Kotlin-файлы ниже находятся в `shared/src/commonMain/kotlin/ru/lifety/`.
 
 ```kotlin
@@ -520,7 +523,11 @@ data class Person(
     val interests: String = "",
     val hobbies: String = "",
     val giftIdeas: String = "",
+    val noteSections: List<PersonNoteSection> = emptyList(),
+    val avatarBase64: String? = null,
 )
+@Serializable
+data class PersonNoteSection(val id: String, val title: String, val items: List<String> = emptyList())
 // core/repository/PersonRepository.kt — ru.lifety.core.repository
 interface PersonRepository {
     fun observeAll(): Flow<List<Person>>
@@ -553,7 +560,8 @@ interface PersonRepository {
   `birthdaysOnDate`, `birthdayLabel`, `birthdayAgeLabel`. Ежегодная проекция
   без Task-копий; 29 февраля → 28 февраля в невисокосный год.
   Редактирование/удаление человека сразу отражается в календаре.
-- Нет новых разрешений, внешнего календаря или доступа AI к карточкам людей.
+- Нет новых разрешений или внешнего календаря. Позднее добавлен явный opt-in
+  текстовых карточек в контекст ИИ; фотографии туда не передаются.
 
 
 ## Списки в карточках людей / нативная дата iOS
@@ -805,7 +813,7 @@ TaskDateTimeField сворачивает controls, сохраняя value/callba
 Границы ручной проверки — [IOS_NATIVE_UI.md](IOS_NATIVE_UI.md).
 
 
-## Расписание, заметки расходов и iOS-меню — актуальная schema 8
+## Расписание, заметки расходов и iOS-меню — schema 8 на момент добавления
 
 Дополнения совместимы со старыми вызовами. `Task`, `TaskRepository`,
 `HealthSnapshot`, `HealthRepository` и существующие входы `XxxScreen(modifier)`
@@ -894,3 +902,47 @@ interface ScheduleRepository {
 `iosApp/Lifety.xcodeproj/xcshareddata/xcschemes/Lifety Performance.xcscheme` запускает
 Release без LLDB; старую Debug-схему не заменяет. Результаты и границы —
 [PERFORMANCE.md](PERFORMANCE.md).
+
+## Свои разделы и фото людей — 1 ноября 2026, актуальная schema 9
+
+- `core/model/Person.kt`, `ru.lifety.core.model`: к концу `Person` добавлены
+  `noteSections: List<PersonNoteSection> = emptyList()` и `avatarBase64: String? = null`.
+  `PersonNoteSection(id: String, title: String, items: List<String> = emptyList())`
+  сериализуемый, ID стабилен при переименовании. Старые поля и `PersonRepository`
+  сохранены; старый JSON читается с дефолтами. Первые три списка остаются String
+  с пунктами через перенос строки; свои списки — структурированные.
+- `PersonValidation.kt`: до 20 своих разделов на человека, уникальные непустые ID
+  до 100 символов, уникальные без учёта регистра названия до 80 символов.
+  Имена трёх встроенных разделов зарезервированы. До 100 пунктов / 10 000 символов
+  на раздел и 40 000 символов суммарно в своих разделах. `normalizedPerson` обрезает
+  края названий, разбивает многострочные пункты и убирает пустые строки.
+- `database/SqlDelightRepositories.kt`: `personFromRow` декодирует JSON разделов;
+  оба потребителя `selectPeople` используют его. `upsert` проверяет исходную и
+  нормализованную карточку, выполняется на IO. Общий DI/Flow/navigation не меняется.
+- `Lifety.sq`: `person.noteSections TEXT NOT NULL DEFAULT '[]'`,
+  `person.avatarBase64 TEXT`. `8.sqm` добавляет оба поля; schema 8→9 оставляет
+  прежние строки/дни рождения/заметки. Другие таблицы не изменены.
+- Фото — центральный квадрат JPEG 512×512, до 180 000 байт / 240 000 Base64-символов,
+  константы `MAX_PERSON_AVATAR_BYTES`, `MAX_PERSON_AVATAR_BASE64`. Оригинал/URI/EXIF
+  не сохраняются. Репозиторий проверяет Base64, длину и JPEG envelope; UI безопасно
+  показывает инициалы, если декодирование изображения не удалось.
+- `feature/people/PersonAvatar.kt`: internal composable аватара, декодирование
+  на Default, expect `rememberPersonPhotoPicker(onPicked, onFinished, onError): () -> Unit`
+  и `decodePersonAvatar(bytes): ImageBitmap?`. Actual-файлы `PersonAvatar.android.kt`
+  и `PersonAvatar.ios.kt` находятся в соответствующих source sets того же пакета.
+- Android использует существующий Activity Result `PickVisualMedia(ImageOnly)`
+  с AndroidX fallback; на API 28+ ImageDecoder, на 24–27 BitmapFactory/ExifInterface.
+  Нет новых зависимостей или разрешений Manifest.
+- `iosMain/core/platform/IosPersonPhotos.kt`: bridge `IosPersonPhotoPicker.pick`
+  возвращает отменяемый `IosPersonPhotoRequest`; подключён через
+  `IosServices.personPhotos`. `iosApp/Lifety/LifetyApp.swift` регистрирует PHPicker
+  и подготовку миниатюры через ImageIO. Выбор отменяется при уничтожении редактора,
+  completion приходит на main. Отмена выбора не стирает прежнее фото.
+- `PersonEditorSheet` сохраняет разделы/фото только по «Сохранить»; во время
+  обработки фото сохранение выключено, закрытие доступно. Свой раздел сворачивается,
+  название/список редактируются, удаление подтверждается. Поиск включает свои заметки;
+  фото видно в списке людей и событиях дней рождения. Экранные сигнатуры прежние.
+- `Person.textContext()` удаляет фото перед сериализацией выбранных карточек
+  в `HealthMetricContext`. Свои разделы входят только при существующем opt-in людей.
+  Смена одного фото не меняет текстовый контекст. Автоматической отправки нет.
+- Проверки, сценарии и пределы — [PEOPLE_SECTIONS_AND_PHOTOS.md](PEOPLE_SECTIONS_AND_PHOTOS.md).

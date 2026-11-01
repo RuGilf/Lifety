@@ -37,7 +37,7 @@ fun PeopleScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) { while (true) { delay(30_000); currentDay = today() } }
     val visible = remember(state.people, search, currentDay) {
         val term = search.trim()
-        state.people.filter { person -> term.isEmpty() || listOf(person.fullName, person.interests, person.hobbies, person.giftIdeas).any { it.contains(term, ignoreCase = true) } }
+        state.people.filter { person -> term.isEmpty() || (listOf(person.fullName, person.interests, person.hobbies, person.giftIdeas) + person.noteSections.flatMap { listOf(it.title) + it.items }).any { it.contains(term, ignoreCase = true) } }
             .sortedWith(compareBy<Person> { nextBirthday(it, currentDay)?.toEpochDays() ?: Long.MAX_VALUE }
                 .thenBy { it.fullName.lowercase() }.thenBy { it.id })
     }
@@ -68,11 +68,7 @@ fun PeopleScreen(modifier: Modifier = Modifier) {
                         Card(onClick = { adding = false; editingId = person.id }, modifier = Modifier.fillMaxWidth()
                             .animateItem(fadeInSpec = tween(LifetyMotion.Quick), placementSpec = tween(LifetyMotion.Standard))) {
                             Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.primaryContainer) {
-                                    Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                                        Text(person.fullName.trim().split(Regex("\\s+")).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString(""), style = MaterialTheme.typography.titleMedium)
-                                    }
-                                }
+                                PersonAvatar(person.fullName, person.avatarBase64, size = 48.dp)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(person.fullName, style = MaterialTheme.typography.titleMedium)
                                     birthdayLabel(person)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary) }
@@ -82,7 +78,8 @@ fun PeopleScreen(modifier: Modifier = Modifier) {
                                     val preview = when {
                                         person.giftIdeas.isNotBlank() -> "Подарки: ${personNotePreview(person.giftIdeas)}"
                                         person.interests.isNotBlank() -> personNotePreview(person.interests)
-                                        else -> personNotePreview(person.hobbies)
+                                        person.hobbies.isNotBlank() -> personNotePreview(person.hobbies)
+                                        else -> person.noteSections.firstOrNull { it.items.any(String::isNotBlank) }?.let { "${it.title}: ${it.items.take(3).joinToString(" · ")}" }.orEmpty()
                                     }
                                     if (preview.isNotBlank()) Text(preview, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }

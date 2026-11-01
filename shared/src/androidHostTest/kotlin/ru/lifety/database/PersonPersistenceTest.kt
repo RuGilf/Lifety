@@ -71,7 +71,7 @@ class PersonPersistenceTest {
         driver.execute(null, "INSERT INTO expense VALUES ('e',9007199254740993,'RUB','Магазин','custom:taxi',100,'manual')", 0)
         driver.execute(null, "INSERT INTO healthSnapshot VALUES (100,420,8000)", 0)
         driver.execute(null, "INSERT INTO expenseCategory VALUES ('custom:taxi','Такси','#D5A1FF',0)", 0)
-        assertEquals(8L, LifetyDatabase.Schema.version)
+        assertEquals(9L, LifetyDatabase.Schema.version)
         LifetyDatabase.Schema.migrate(driver, 2, LifetyDatabase.Schema.version)
         AppContainer(driver).use { app ->
             assertEquals(300L, app.repositories.tasks.observeAll().first().single().deadlineAt)

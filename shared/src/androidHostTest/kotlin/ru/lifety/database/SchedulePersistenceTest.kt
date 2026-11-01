@@ -54,7 +54,9 @@ class SchedulePersistenceTest {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         try {
             LifetyDatabase.Schema.create(driver)
-            driver.execute(null, "DROP TABLE scheduleBlock", 0)
+            driver.execute(null, "ALTER TABLE person DROP COLUMN noteSections", 0)
+        driver.execute(null, "ALTER TABLE person DROP COLUMN avatarBase64", 0)
+        driver.execute(null, "DROP TABLE scheduleBlock", 0)
             val old = createDatabase(driver)
             old.lifetyQueries.upsertExpense("e", 100, "RUB", "Магазин", "other", 1, "manual", "Хлеб")
             old.lifetyQueries.upsertNavigationConfiguration("[\"tasks\"]", "arc")

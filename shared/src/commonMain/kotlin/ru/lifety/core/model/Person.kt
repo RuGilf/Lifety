@@ -13,4 +13,15 @@ data class Person(
     val interests: String = "",
     val hobbies: String = "",
     val giftIdeas: String = "",
+    val noteSections: List<PersonNoteSection> = emptyList(),
+    val avatarBase64: String? = null,
 )
+
+@Serializable
+data class PersonNoteSection(val id: String, val title: String, val items: List<String> = emptyList())
+
+/** Photos stay local, including when the user opts into text context about people. */
+fun Person.textContext(): Person = if (avatarBase64 == null) this else copy(avatarBase64 = null)
+
+const val MAX_PERSON_AVATAR_BYTES = 180_000
+const val MAX_PERSON_AVATAR_BASE64 = 240_000

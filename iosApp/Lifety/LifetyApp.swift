@@ -1,11 +1,15 @@
 import SwiftUI
 import LifetyShared
+import PhotosUI
+import ImageIO
+import UniformTypeIdentifiers
 
 @main
 struct LifetyIosApp: App {
     @AppStorage("lifety.appearance.theme") private var themeId = "lifety"
     init() {
         IosServices.shared.arcNavigation = NativeArcNavigationFactory()
+        IosServices.shared.personPhotos = NativePersonPhotoPicker()
         IosServices.shared.credentials = KeychainStore()
         IosServices.shared.health = AppleHealthSource()
         IosServices.shared.sectionLocks = SectionLockStorage()
@@ -143,5 +147,102 @@ private struct ArcNavigationView: View {
             .accessibilityAction(.escape) { model.setExpanded(false) }
         }
         .ignoresSafeArea()
+    }
+}
+
+// A single selected photo is normalized off the main thread; only a small JPEG is retained.
+private final class NativePersonPhotoPicker: IosPersonPhotoPicker {
+    func pick(presenter: UIViewController, completion: @escaping (String?, String?) -> Void) -> IosPersonPhotoRequest {
+        MainActor.assumeIsolated {
+            let request = NativePersonPhotoRequest(completion: completion)
+            request.start(from: presenter)
+            return request
+        }
+    }
+}
+
+@MainActor
+private final class NativePersonPhotoRequest: NSObject, PHPickerViewControllerDelegate, UIAdaptivePresentationControllerDelegate, @preconcurrency IosPersonPhotoRequest {
+    private var completion: ((String?, String?) -> Void)?
+    private var picker: PHPickerViewController?
+    private var progress: Progress?
+    private var cancelled = false
+    private var pickingEnded = false
+    init(completion: @escaping (String?, String?) -> Void) { self.completion = completion }
+
+    func start(from host: UIViewController) {
+        var presenter = host
+        while let presented = presenter.presentedViewController { presenter = presented }
+        guard presenter.viewIfLoaded?.window != nil, !presenter.isBeingDismissed else {
+            finish(nil, "Не удалось открыть фотографии. Попробуйте ещё раз."); return
+        }
+        var configuration = PHPickerConfiguration()
+        configuration.filter = .images
+        configuration.selectionLimit = 1
+        configuration.preferredAssetRepresentationMode = .compatible
+        let picker = PHPickerViewController(configuration: configuration)
+        self.picker = picker
+        picker.delegate = self
+        presenter.present(picker, animated: true)
+        picker.presentationController?.delegate = self
+    }
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        picker = nil
+        if !pickingEnded { finish(nil, nil) }
+    }
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        pickingEnded = true
+        picker.dismiss(animated: true)
+        self.picker = nil
+        guard let provider = results.first?.itemProvider else { finish(nil, nil); return }
+        progress = provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] url, _ in
+            // The temporary URL is valid only inside this callback.
+            let photo = url.flatMap(Self.thumbnail)
+            DispatchQueue.main.async { [weak self] in
+                self?.finish(photo, photo == nil ? "Не удалось загрузить фото. Выберите другое изображение." : nil)
+            }
+        }
+    }
+    private func finish(_ value: String?, _ error: String?) {
+        guard !cancelled, let done = completion else { return }
+        completion = nil
+        progress = nil
+        done(value, error)
+    }
+    func cancel() {
+        cancelled = true
+        completion = nil
+        progress?.cancel(); progress = nil
+        picker?.delegate = nil
+        picker?.dismiss(animated: false); picker = nil
+    }
+    nonisolated private static func thumbnail(_ url: URL) -> String? {
+        return autoreleasepool(invoking: { () -> String? in
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 1024,
+                    kCGImageSourceShouldCacheImmediately: true
+                  ] as CFDictionary),
+                  let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(data: nil, width: 512, height: 512, bitsPerComponent: 8, bytesPerRow: 0,
+                    space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+            context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: 512, height: 512))
+            let scale = 512 / CGFloat(min(image.width, image.height))
+            let width = CGFloat(image.width) * scale, height = CGFloat(image.height) * scale
+            context.interpolationQuality = .high
+            context.draw(image, in: CGRect(x: (512 - width) / 2, y: (512 - height) / 2, width: width, height: height))
+            guard let square = context.makeImage() else { return nil }
+            for quality in [0.82, 0.65, 0.45] {
+                let data = NSMutableData()
+                guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+                CGImageDestinationAddImage(destination, square, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+                guard CGImageDestinationFinalize(destination) else { return nil }
+                if data.length <= 180_000 { return (data as Data).base64EncodedString() }
+            }
+            return nil
+        })
     }
 }

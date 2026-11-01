@@ -52,7 +52,7 @@ fun selectedExtraContext(preferences: ChatGptPreferences, metrics: HealthMetricS
                 put("currency", key.first); put("category", key.second); put("amountMinor", exactMinorTotal(values.map { it.amountMinor })); put("records", values.size)
             } }))
         }
-        if (preferences.includePeople) put("people", Json.encodeToJsonElement(people.sortedBy { it.id }))
+        if (preferences.includePeople) put("people", Json.encodeToJsonElement(people.sortedBy { it.id }.map { it.textContext() }))
     }
 }
 

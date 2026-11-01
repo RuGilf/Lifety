@@ -100,6 +100,8 @@ class ChatGptExchangePersistenceTest {
     }
     @Test fun migrationFourToFivePreservesBusinessDataAndStartsWithEmptyWorkspace() = runBlocking<Unit> {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY); LifetyDatabase.Schema.create(driver)
+        driver.execute(null, "ALTER TABLE person DROP COLUMN noteSections", 0)
+        driver.execute(null, "ALTER TABLE person DROP COLUMN avatarBase64", 0)
         driver.execute(null, "DROP TABLE scheduleBlock", 0)
         driver.execute(null, "ALTER TABLE expense DROP COLUMN note", 0)
         driver.execute(null, "DROP TABLE healthEntry", 0); driver.execute(null, "DROP TABLE healthMetric", 0); driver.execute(null, "DROP TABLE navigationPreference", 0)
@@ -109,7 +111,7 @@ class ChatGptExchangePersistenceTest {
         driver.execute(null, "INSERT INTO planReport VALUES (1,'Разбор',100)", 0)
         LifetyDatabase.Schema.migrate(driver, 4, LifetyDatabase.Schema.version)
         AppContainer(driver).use { app ->
-            assertEquals(8L, LifetyDatabase.Schema.version)
+            assertEquals(9L, LifetyDatabase.Schema.version)
             assertEquals(20L, app.repositories.tasks.observeAll().first().single().deadlineAt)
             assertEquals(30, app.repositories.planning!!.observeAll().first().single().durationMinutes)
             assertEquals(ChatGptWorkspace(), app.repositories.chatGptExchange!!.observe().first())

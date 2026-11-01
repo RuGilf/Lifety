@@ -182,7 +182,10 @@ fun CalendarScreen(modifier: Modifier = Modifier) {
                 items(selectedBirthdays, key = { "birthday:${it.id}" }, contentType = { "birthday" }) { person ->
                     Card(onClick = { editingPersonId = person.id }, modifier = Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(person.fullName, style = MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                PersonAvatar(person.fullName, person.avatarBase64, size = 40.dp)
+                                Text(person.fullName, style = MaterialTheme.typography.titleMedium)
+                            }
                             Text(birthdayAgeLabel(person, selected), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
                             if (person.giftIdeas.isNotBlank()) Text("Идеи подарков: ${personNotePreview(person.giftIdeas)}", maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

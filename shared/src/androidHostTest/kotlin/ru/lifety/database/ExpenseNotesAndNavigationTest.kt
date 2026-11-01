@@ -40,6 +40,7 @@ class ExpenseNotesAndNavigationTest {
             driver.execute(null, "CREATE TABLE navigationPreference(id INTEGER NOT NULL PRIMARY KEY CHECK(id=1), routes TEXT NOT NULL)", 0)
             driver.execute(null, "INSERT INTO expense VALUES ('old',999,'RUB','Store','food',10,'manual')", 0)
             driver.execute(null, "INSERT INTO navigationPreference VALUES (1,'[\"health\",\"tasks\"]')", 0)
+            driver.execute(null, "CREATE TABLE person(id TEXT NOT NULL PRIMARY KEY, fullName TEXT NOT NULL, birthdayMonth INTEGER, birthdayDay INTEGER, birthYear INTEGER, interests TEXT NOT NULL, hobbies TEXT NOT NULL, giftIdeas TEXT NOT NULL)", 0)
             LifetyDatabase.Schema.migrate(driver, 6, LifetyDatabase.Schema.version)
             val database = createDatabase(driver)
             val expenses = SqlDelightExpenseRepository(database)

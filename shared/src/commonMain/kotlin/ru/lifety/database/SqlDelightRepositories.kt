@@ -13,6 +13,11 @@ import ru.lifety.core.model.ExpenseCategory
 import ru.lifety.core.repository.ExpenseCategoryRepository
 import ru.lifety.core.model.HealthSnapshot
 import ru.lifety.core.model.Person
+import ru.lifety.core.model.PersonNoteSection
+import ru.lifety.core.model.normalizedPerson
+import ru.lifety.core.model.MAX_PERSON_AVATAR_BYTES
+import kotlinx.serialization.json.Json
+import kotlin.io.encoding.Base64
 import ru.lifety.core.repository.PersonRepository
 import ru.lifety.core.model.personValidationError
 import ru.lifety.core.model.Task
@@ -102,14 +107,26 @@ class SqlDelightPersonRepository(
 ) : PersonRepository {
     private val queries = database.lifetyQueries
 
-    override fun observeAll(): Flow<List<Person>> = queries.selectPeople(::Person).asFlow().mapToList(dispatcher)
+    override fun observeAll(): Flow<List<Person>> = queries.selectPeople(::personFromRow).asFlow().mapToList(dispatcher)
 
     override suspend fun upsert(person: Person) = withContext(dispatcher) {
         require(personValidationError(person) == null) { personValidationError(person) ?: "Invalid person" }
-        queries.upsertPerson(person.id, person.fullName.trim(), person.birthdayMonth, person.birthdayDay,
-            person.birthYear, person.interests.trim(), person.hobbies.trim(), person.giftIdeas.trim())
+        val clean = normalizedPerson(person)
+        require(personValidationError(clean) == null) { personValidationError(clean).orEmpty() }
+        clean.avatarBase64?.let { encoded ->
+            val bytes = Base64.Default.decode(encoded)
+            require(bytes.size in 4..MAX_PERSON_AVATAR_BYTES && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte() && bytes[2] == 0xff.toByte() && bytes.takeLast(2) == listOf(0xff.toByte(), 0xd9.toByte()))
+        }
+        queries.upsertPerson(clean.id, clean.fullName, clean.birthdayMonth, clean.birthdayDay,
+            clean.birthYear, clean.interests, clean.hobbies, clean.giftIdeas, Json.encodeToString(clean.noteSections), clean.avatarBase64)
         Unit
     }
 
     override suspend fun delete(id: String) = withContext(dispatcher) { queries.deletePerson(id); Unit }
 }
+
+
+internal fun personFromRow(id: String, fullName: String, birthdayMonth: Int?, birthdayDay: Int?, birthYear: Int?,
+    interests: String, hobbies: String, giftIdeas: String, noteSections: String, avatarBase64: String?): Person =
+    Person(id, fullName, birthdayMonth, birthdayDay, birthYear, interests, hobbies, giftIdeas,
+        Json.decodeFromString<List<PersonNoteSection>>(noteSections), avatarBase64)

@@ -56,7 +56,7 @@ class SqlDelightPlanningRepository(database: LifetyDatabase, private val dispatc
             val extra = selectedExtraContext(workspace.preferences, if (workspace.preferences.healthMetricIds.isNotEmpty()) queries.metricSnapshot() else ru.lifety.core.model.HealthMetricSnapshot(),
                 if (workspace.preferences.includeSteps) queries.selectHealthHistory(::HealthSnapshot).executeAsList() else emptyList(),
                 if (workspace.preferences.includeFinance) queries.selectExpenses(::Expense).executeAsList() else emptyList(),
-                if (workspace.preferences.includePeople) queries.selectPeople(::Person).executeAsList() else emptyList(), now, TimeZone.currentSystemDefault())
+                if (workspace.preferences.includePeople) queries.selectPeople(::personFromRow).executeAsList() else emptyList(), now, TimeZone.currentSystemDefault())
             validateChatGptResponse(plan, workspace, snapshot, sleep, now, TimeZone.currentSystemDefault(), extra)
             val tasks = snapshot.tasks.associateBy { it.id }
             plan.tasks.forEach { item ->
