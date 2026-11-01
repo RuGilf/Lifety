@@ -946,3 +946,52 @@ Release без LLDB; старую Debug-схему не заменяет. Рез
   в `HealthMetricContext`. Свои разделы входят только при существующем opt-in людей.
   Смена одного фото не меняет текстовый контекст. Автоматической отправки нет.
 - Проверки, сценарии и пределы — [PEOPLE_SECTIONS_AND_PHOTOS.md](PEOPLE_SECTIONS_AND_PHOTOS.md).
+
+## iOS TODO-виджеты и локальные уведомления — 1–2 ноября 2026
+
+Schema **9**, публичные модели/репозитории и существующие экранные входы прежние.
+Новых Android-уведомлений или Kotlin-зависимостей это изменение не добавляет.
+
+- `core/companion/PlannerCompanion.kt` (`ru.lifety.core.companion`): internal
+  `CompanionSnapshot(version=1, protected, tasks, people)`, `CompanionTask` и
+  `CompanionPerson`. `companionSnapshot` исключает выполненные задачи, людей без
+  дня рождения, все фото/заметки и скрывает названия/имена при защите Плана.
+- Expect `PlatformPlannerIntegration(repositories)` вызывается один раз внутри
+  root CompositionLocalProvider. Android actual — no-op. iOS actual наблюдает
+  Flow задач/людей и постоянную конфигурацию защиты, сериализует на Default,
+  передаёт только изменившийся JSON на main. Разблокировка не раскрывает виджет.
+- iOS actual в `shared/src/iosMain/kotlin/ru/lifety/core/companion/PlannerCompanion.ios.kt`:
+  host bridge `IosPlannerCompanion.update(snapshotJson)` / `showSettings(presenter)`;
+  регистрация `IosPlannerServices.companion`. `PlatformReminderSettingsLink` даёт
+  вход из настроек в SwiftUI Form. `LifetyApp.swift` подключает singleton сервиса.
+- `openPlannerLink(route, taskId)` — main-thread вход, принимает только tasks/people.
+  Отложенный запрос сохраняется до готовности навигации. RootNavigator и
+  PlannerNavigation открывают обычные защищённые экраны. URL scheme `lifety`,
+  host tasks/people, query id — opaque percent-encoded ID, максимум 200 символов.
+  URL и уведомление не меняют данные и не обходят SectionGuard.
+- `iosApp/Companion/PlannerCompanionModels.swift` собирается в app и extension,
+  содержит Codable DTO, `TodoWidgetDocument`, `ReminderPreferences`, чистый
+  `ReminderPlanner`. В расширении нет LifetyShared/SQLite. Task timestamps — epoch ms;
+  времена напоминаний — Date; дни рождения рассчитываются Gregorian/local timezone.
+- `iosApp/Lifety/PlannerCompanion.swift` владеет UserNotifications delegate,
+  разрешением по явной кнопке, последовательной сверкой pending requests,
+  UserDefaults `lifety.reminders.v1` и атомарной выгрузкой App Group.
+  IDs `lifety.planner.{due|before|start|birthday|birthdayBefore}.*` постоянны.
+  Удалённые/завершённые дела отменяют pending и устаревшие delivered notifications;
+  другие подсистемы не затрагиваются. Разрешение перечитывается при foreground;
+  изменение часового пояса/времени пересчитывает очередь.
+- Лимит — 60 ближайших с учётом чужих pending requests. При длительной работе без
+  открытия приложения очередь не пополняется бесконечно. Прошедшие даты исключены.
+  Дедлайн + выбранный lead; start — отдельный opt-in; birthday в выбранный час
+  плюс календарный день до него, current year..year+2. 29 февраля следует календарю.
+- App Group `group.ru.lifety.ios`: `todo-widget-v1.json`, версия 1, updatedAt,
+  protected, максимум 200 активных задач в порядке ближайшей даты. Только app пишет,
+  расширение читает. При защите tasks=[]; карточки людей в файл не попадают.
+  Изменение содержимого вызывает `WidgetCenter.reloadTimelines("LifetyTodo")`.
+- Target `LifetyWidgets`, bundle `ru.lifety.ios.widgets`: встроенный `.appex`,
+  `LifetyTodoWidget.swift`, свой Info.plist/entitlements. Поддерживаются system
+  small/medium/large и accessory inline/circular/rectangular. Timeline использует
+  сроки/начала и следующую полночь; окончательное расписание обновлений выбирает iOS.
+- App и extension требуют одинаковую signing team и зарегистрированный App Group.
+  Учетные записи, provisioning profiles и Developer Portal не менялись автоматически.
+- Точные команды, ручные проверки и ограничения — [IOS_WIDGETS_AND_REMINDERS.md](IOS_WIDGETS_AND_REMINDERS.md).

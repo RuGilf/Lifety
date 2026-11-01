@@ -73,6 +73,7 @@ fun LifetySettingsSheet(onDismiss: () -> Unit, onFinance: () -> Unit) {
                 }
             }
             }
+            ru.lifety.core.companion.PlatformReminderSettingsLink()
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Тема", style = MaterialTheme.typography.titleMedium)
                 Text("Палитры из мира Neovim. Применяются сразу.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

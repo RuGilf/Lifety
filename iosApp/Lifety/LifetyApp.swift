@@ -6,8 +6,10 @@ import UniformTypeIdentifiers
 
 @main
 struct LifetyIosApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("lifety.appearance.theme") private var themeId = "lifety"
     init() {
+        IosPlannerServices.shared.companion = PlannerCompanion.shared
         IosServices.shared.arcNavigation = NativeArcNavigationFactory()
         IosServices.shared.personPhotos = NativePersonPhotoPicker()
         IosServices.shared.credentials = KeychainStore()
@@ -23,6 +25,9 @@ struct LifetyIosApp: App {
                 Color(uiColor: background).ignoresSafeArea()
                 LifetyRoot(background: background).ignoresSafeArea()
             }
+            .onOpenURL { PlannerCompanion.shared.open($0) }
+            .onChange(of: scenePhase) { _, phase in if phase == .active { PlannerCompanion.shared.refresh() } }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in PlannerCompanion.shared.refresh() }
             .preferredColorScheme(LifetyPalette.companion.fromId(id: themeId).palette.isDark ? .dark : .light)
         }
     }
